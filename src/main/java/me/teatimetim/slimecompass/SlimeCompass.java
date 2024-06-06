@@ -12,6 +12,8 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.meta.CompassMeta;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.LinkedList;
@@ -20,6 +22,7 @@ import java.util.Random;
 
 public final class SlimeCompass extends JavaPlugin implements Listener {
 
+    private final NamespacedKey _key = new NamespacedKey(this, "slime_compass");
     private final String _itemName = ChatColor.AQUA + "Slime Compass";
     private final List<String> _itemLore = new LinkedList<String>(){{add(ChatColor.DARK_PURPLE + "Right-click to check for slime chunks.");}};
 
@@ -37,18 +40,19 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onPlayerRightClick(PlayerInteractEvent event) {
-        if (NotRightClick(event)) return;
-
+        Player player = event.getPlayer();
         ItemStack heldItem = event.getItem();
-        if (ItemIsNotSlimeCompass(heldItem)) return;
 
+        if (NotRightClick(event)
+                || ItemIsNotSlimeCompass(heldItem)
+                || PlayerIsNotInOverworld(player))
+            return;
+
+        //If the compass were used to click a lodestone it would act like a regular compass; we don't want this.
         if (ClickedBlockIsLodestone(event.getClickedBlock())) {
             event.setCancelled(true);
             return;
         }
-
-        Player player = event.getPlayer();
-        if (PlayerIsNotInOverworld(player)) return;
 
         long seed = player.getWorld().getSeed();
         Chunk playerChunk = player.getLocation().getChunk();
@@ -59,7 +63,6 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
             CompassMeta compassMeta = (CompassMeta) heldItem.getItemMeta();
             Location chunkCenter = playerChunk.getBlock(8, 64, 8).getLocation();
             compassMeta.setLodestone(chunkCenter);
-            compassMeta.setLodestoneTracked(false);
 
             heldItem.setItemMeta(compassMeta);
             
@@ -72,8 +75,7 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
     private void InitSlimeCompassRecipe() {
         ItemStack item = CreateSlimeCompassItem();
 
-        NamespacedKey key = new NamespacedKey(this, "slime_compass");
-        ShapedRecipe recipe = new ShapedRecipe(key, item);
+        ShapedRecipe recipe = new ShapedRecipe(_key, item);
 
         recipe.shape(
                 " I ",
@@ -96,13 +98,16 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         meta.setLodestoneTracked(false);
 
+        PersistentDataContainer data = meta.getPersistentDataContainer();
+        data.set(_key, PersistentDataType.BYTE, (byte) 0);
+
         item.setItemMeta(meta);
 
         return item;
     }
 
     private boolean LocationIsSlimeChunk(long seed, int xPosition, int zPosition) {
-        //The int casting in this section is redundant, however it is how the function is written in Minecraft's code
+        //The int casting in this formula is redundant, however this is true to Minecraft's code
         Random rnd = new Random(
                 seed +
                         (int) (xPosition * xPosition * 0x4c1906) +
@@ -120,15 +125,13 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
     }
 
     private boolean ItemIsNotSlimeCompass(ItemStack item) {
-        return (item == null
-                || item.getType() != Material.COMPASS
-                || !item.containsEnchantment(Enchantment.INFINITY)
-                || !item.getItemMeta().getDisplayName().equals(_itemName)
-                || !item.getItemMeta().getLore().equals(_itemLore));
+        return item == null
+                || !item.getItemMeta().getPersistentDataContainer().has(_key, PersistentDataType.BYTE);
     }
 
     private boolean ClickedBlockIsLodestone(Block block) {
-        return block != null && block.getType() == Material.LODESTONE;
+        return block != null
+                && block.getType() == Material.LODESTONE;
     }
     
     private boolean PlayerIsNotInOverworld(Player player) {
