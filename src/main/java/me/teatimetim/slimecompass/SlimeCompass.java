@@ -1,11 +1,14 @@
 package me.teatimetim.slimecompass;
 
 import org.bukkit.*;
+import org.bukkit.block.Block;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.meta.CompassMeta;
@@ -35,9 +38,14 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerRightClick(PlayerInteractEvent event) {
         if (NotRightClick(event)) return;
-        
+
         ItemStack heldItem = event.getItem();
         if (ItemIsNotSlimeCompass(heldItem)) return;
+
+        if (ClickedBlockIsLodestone(event.getClickedBlock())) {
+            event.setCancelled(true);
+            return;
+        }
 
         Player player = event.getPlayer();
         if (PlayerIsNotInOverworld(player)) return;
@@ -51,7 +59,7 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
             CompassMeta compassMeta = (CompassMeta) heldItem.getItemMeta();
             Location chunkCenter = playerChunk.getBlock(8, 64, 8).getLocation();
             compassMeta.setLodestone(chunkCenter);
-            //compassMeta.setLodestoneTracked(false);
+            compassMeta.setLodestoneTracked(false);
 
             heldItem.setItemMeta(compassMeta);
             
@@ -79,15 +87,14 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
 
     private ItemStack CreateSlimeCompassItem() {
         ItemStack item = new ItemStack(Material.COMPASS);
+        item.addUnsafeEnchantment(Enchantment.INFINITY, 1);
+
         CompassMeta meta = (CompassMeta) item.getItemMeta();
 
         meta.setDisplayName(_itemName);
         meta.setLore(_itemLore);
+        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         meta.setLodestoneTracked(false);
-
-
-        //item.addUnsafeEnchantment(Enchantment.INFINITY, 1);
-        //meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
 
         item.setItemMeta(meta);
 
@@ -115,9 +122,13 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
     private boolean ItemIsNotSlimeCompass(ItemStack item) {
         return (item == null
                 || item.getType() != Material.COMPASS
-                //|| !item.containsEnchantment(Enchantment.INFINITY)
+                || !item.containsEnchantment(Enchantment.INFINITY)
                 || !item.getItemMeta().getDisplayName().equals(_itemName)
                 || !item.getItemMeta().getLore().equals(_itemLore));
+    }
+
+    private boolean ClickedBlockIsLodestone(Block block) {
+        return block != null && block.getType() == Material.LODESTONE;
     }
     
     private boolean PlayerIsNotInOverworld(Player player) {
