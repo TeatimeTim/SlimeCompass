@@ -1,0 +1,5 @@
+name: SlimeCompass
+version: '${project.version}'
+main: me.teatimetim.slimecompass.SlimeCompass
+api-version: '1.20'
+authors: [TeatimeTim]
