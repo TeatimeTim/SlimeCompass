@@ -23,8 +23,11 @@ import java.util.Random;
 public final class SlimeCompass extends JavaPlugin implements Listener {
 
     private final NamespacedKey _key = new NamespacedKey(this, "slime_compass");
+
     private final String _itemName = ChatColor.AQUA + "Slime Compass";
     private final List<String> _itemLore = new LinkedList<String>(){{add(ChatColor.DARK_PURPLE + "Right-click to check for slime chunks.");}};
+
+    private final int _searchRadius = 1;
 
     @Override
     public void onEnable() {
@@ -57,19 +60,48 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
         long seed = player.getWorld().getSeed();
         Chunk playerChunk = player.getLocation().getChunk();
 
-        if (LocationIsSlimeChunk(seed, playerChunk.getX(), playerChunk.getZ())) {
-            player.sendMessage(ChatColor.GREEN + "You are in a slime chunk!");
-            
-            CompassMeta compassMeta = (CompassMeta) heldItem.getItemMeta();
-            Location chunkCenter = playerChunk.getBlock(8, 64, 8).getLocation();
-            compassMeta.setLodestone(chunkCenter);
+        int chunkX = playerChunk.getX();
+        int chunkZ = playerChunk.getZ();
 
-            heldItem.setItemMeta(compassMeta);
-            
+        //Find all slime chunks within 3x3 radius
+        List<Chunk> slimeChunks = new LinkedList<>();
+        for (int x = -_searchRadius; x <= _searchRadius; x++) {
+            for (int z = -_searchRadius; z <= _searchRadius; z++) {
+                Chunk currentChunk = playerChunk.getWorld().getChunkAt(chunkX + x, chunkZ + z);
+                if (!LocationIsSlimeChunk(seed, currentChunk)) continue;
+
+                slimeChunks.add(currentChunk);
+            }
+        }
+
+        if (slimeChunks.isEmpty()) {
+            player.sendMessage(ChatColor.RED + "There are no slime chunks nearby.");
             return;
         }
 
-        player.sendMessage(ChatColor.RED + "You are not in a slime chunk.");
+        Chunk closestSlimeChunk = playerChunk;
+        double shortestDistance = Double.MAX_VALUE;
+
+        for (Chunk chunk : slimeChunks) {
+            Location chunkCenter = chunk.getBlock(8, 64, 8).getLocation();
+            double distanceFromPlayer = player.getLocation().distance(chunkCenter);
+
+            if (distanceFromPlayer > shortestDistance) continue;
+
+            closestSlimeChunk = chunk;
+            shortestDistance = distanceFromPlayer;
+        }
+
+        player.sendMessage(ChatColor.GREEN + "Found " + slimeChunks.size() + " slime chunks nearby. Pointing to nearest slime chunk...");
+        PointCompassTowardsChunkCenter(heldItem, closestSlimeChunk);
+    }
+
+    private void PointCompassTowardsChunkCenter(ItemStack compass, Chunk chunk) {
+        CompassMeta compassMeta = (CompassMeta) compass.getItemMeta();
+        Location chunkCenter = chunk.getBlock(8, 64, 8).getLocation();
+        compassMeta.setLodestone(chunkCenter);
+
+        compass.setItemMeta(compassMeta);
     }
 
     private void InitSlimeCompassRecipe() {
@@ -106,7 +138,10 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
         return item;
     }
 
-    private boolean LocationIsSlimeChunk(long seed, int xPosition, int zPosition) {
+    private boolean LocationIsSlimeChunk(long seed, Chunk chunk) {
+        int xPosition = chunk.getX();
+        int zPosition = chunk.getZ();
+
         //The int casting in this formula is redundant, however this is true to Minecraft's code
         Random rnd = new Random(
                 seed +
