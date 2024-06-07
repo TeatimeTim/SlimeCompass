@@ -46,6 +46,7 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
         ItemStack heldItem = event.getItem();
 
+        //Only continue if player right-clicked with the slime compass in the overworld
         if (NotRightClick(event)
                 || ItemIsNotSlimeCompass(heldItem)
                 || PlayerIsNotInOverworld(player))
@@ -58,41 +59,42 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
         }
 
         long seed = player.getWorld().getSeed();
-        Chunk playerChunk = player.getLocation().getChunk();
+        Location playerLocation = player.getLocation();
+        Chunk playerChunk = playerLocation.getChunk();
 
         int chunkX = playerChunk.getX();
         int chunkZ = playerChunk.getZ();
 
         //Find all slime chunks within 3x3 radius
-        List<Chunk> slimeChunks = new LinkedList<>();
-        for (int x = -_searchRadius; x <= _searchRadius; x++) {
-            for (int z = -_searchRadius; z <= _searchRadius; z++) {
-                Chunk currentChunk = playerChunk.getWorld().getChunkAt(chunkX + x, chunkZ + z);
-                if (!LocationIsSlimeChunk(seed, currentChunk)) continue;
-
-                slimeChunks.add(currentChunk);
-            }
-        }
-
-        if (slimeChunks.isEmpty()) {
-            player.sendMessage(ChatColor.RED + "There are no slime chunks nearby.");
-            return;
-        }
+        int chunkCount = 0;
 
         Chunk closestSlimeChunk = playerChunk;
         double shortestDistance = Double.MAX_VALUE;
 
-        for (Chunk chunk : slimeChunks) {
-            Location chunkCenter = chunk.getBlock(8, 64, 8).getLocation();
-            double distanceFromPlayer = player.getLocation().distance(chunkCenter);
+        for (int x = -_searchRadius; x <= _searchRadius; x++) {
+            for (int z = -_searchRadius; z <= _searchRadius; z++) {
+                Chunk currentChunk = player.getWorld().getChunkAt(chunkX + x, chunkZ + z);
 
-            if (distanceFromPlayer > shortestDistance) continue;
+                if (!LocationIsSlimeChunk(seed, currentChunk)) continue;
 
-            closestSlimeChunk = chunk;
-            shortestDistance = distanceFromPlayer;
+                chunkCount++;
+
+                Location chunkCenter = currentChunk.getBlock(8, 64, 8).getLocation();
+                double distanceFromPlayer = playerLocation.distance(chunkCenter);
+
+                if (distanceFromPlayer > shortestDistance) continue;
+
+                closestSlimeChunk = currentChunk;
+                shortestDistance = distanceFromPlayer;
+            }
         }
 
-        player.sendMessage(ChatColor.GREEN + "Found " + slimeChunks.size() + " slime chunks nearby. Pointing to nearest slime chunk...");
+        if (chunkCount == 0) {
+            player.sendMessage(ChatColor.RED + "There are no slime chunks nearby.");
+            return;
+        }
+
+        player.sendMessage(ChatColor.GREEN + "Found " + chunkCount + " slime chunks nearby. Pointing to nearest slime chunk...");
         PointCompassTowardsChunkCenter(heldItem, closestSlimeChunk);
     }
 
