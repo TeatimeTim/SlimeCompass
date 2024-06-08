@@ -22,17 +22,17 @@ import java.util.Random;
 
 public final class SlimeCompass extends JavaPlugin implements Listener {
 
-    private final NamespacedKey _key = new NamespacedKey(this, "slime_compass");
+    private final NamespacedKey KEY = new NamespacedKey(this, "slime_compass");
 
+    //The underscores here are a C# holdover, and a reminder to make these configurable in the future
     private final String _itemName = ChatColor.AQUA + "Slime Compass";
     private final List<String> _itemLore = new LinkedList<String>(){{add(ChatColor.DARK_PURPLE + "Right-click to check for slime chunks.");}};
-
     private final int _searchRadius = 1;
 
     @Override
     public void onEnable() {
         System.out.println("Starting Slime Compass");
-        InitSlimeCompassRecipe();
+        initSlimeCompassRecipe();
         getServer().getPluginManager().registerEvents(this, this);
     }
 
@@ -46,14 +46,12 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
         ItemStack heldItem = event.getItem();
 
-        //Only continue if player right-clicked with the slime compass in the overworld
-        if (NotRightClick(event)
-                || ItemIsNotSlimeCompass(heldItem)
-                || PlayerIsNotInOverworld(player))
+        if (notRightClick(event)
+                || itemIsNotSlimeCompass(heldItem))
             return;
 
         //If the compass were used to click a lodestone it would act like a regular compass; we don't want this.
-        if (ClickedBlockIsLodestone(event.getClickedBlock())) {
+        if (clickedBlockIsLodestone(event.getClickedBlock()) || playerIsNotInOverworld(player)) {
             event.setCancelled(true);
             return;
         }
@@ -65,15 +63,14 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
         int chunkX = playerChunk.getX();
         int chunkZ = playerChunk.getZ();
 
-        //Find all slime chunks within 3x3 radius
         int chunkCount = 0;
 
         Chunk closestSlimeChunk = playerChunk;
         double shortestDistance = Double.MAX_VALUE;
 
-        for (int x = -_searchRadius; x <= _searchRadius; x++) {
-            for (int z = -_searchRadius; z <= _searchRadius; z++) {
-                Chunk currentChunk = player.getWorld().getChunkAt(chunkX + x, chunkZ + z);
+        for (int xOffset = -_searchRadius; xOffset <= _searchRadius; xOffset++) {
+            for (int zOffset = -_searchRadius; zOffset <= _searchRadius; zOffset++) {
+                Chunk currentChunk = player.getWorld().getChunkAt(chunkX + xOffset, chunkZ + zOffset);
 
                 if (!LocationIsSlimeChunk(seed, currentChunk)) continue;
 
@@ -95,10 +92,10 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
         }
 
         player.sendMessage(ChatColor.GREEN + "Found " + chunkCount + " slime chunks nearby. Pointing to nearest slime chunk...");
-        PointCompassTowardsChunkCenter(heldItem, closestSlimeChunk);
+        pointCompassTowardsChunkCenter(heldItem, closestSlimeChunk);
     }
 
-    private void PointCompassTowardsChunkCenter(ItemStack compass, Chunk chunk) {
+    private void pointCompassTowardsChunkCenter(ItemStack compass, Chunk chunk) {
         CompassMeta compassMeta = (CompassMeta) compass.getItemMeta();
         Location chunkCenter = chunk.getBlock(8, 64, 8).getLocation();
         compassMeta.setLodestone(chunkCenter);
@@ -106,10 +103,10 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
         compass.setItemMeta(compassMeta);
     }
 
-    private void InitSlimeCompassRecipe() {
+    private void initSlimeCompassRecipe() {
         ItemStack item = CreateSlimeCompassItem();
 
-        ShapedRecipe recipe = new ShapedRecipe(_key, item);
+        ShapedRecipe recipe = new ShapedRecipe(KEY, item);
 
         recipe.shape(
                 " I ",
@@ -133,7 +130,7 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
         meta.setLodestoneTracked(false);
 
         PersistentDataContainer data = meta.getPersistentDataContainer();
-        data.set(_key, PersistentDataType.BYTE, (byte) 0);
+        data.set(KEY, PersistentDataType.BYTE, (byte) 0);
 
         item.setItemMeta(meta);
 
@@ -144,7 +141,6 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
         int xPosition = chunk.getX();
         int zPosition = chunk.getZ();
 
-        //The int casting in this formula is redundant, however this is true to Minecraft's code
         Random rnd = new Random(
                 seed +
                         (int) (xPosition * xPosition * 0x4c1906) +
@@ -156,22 +152,22 @@ public final class SlimeCompass extends JavaPlugin implements Listener {
         return (rnd.nextInt(10) == 0);
     }
 
-    private boolean NotRightClick(PlayerInteractEvent event) {
+    private boolean notRightClick(PlayerInteractEvent event) {
         return event.getAction() != Action.RIGHT_CLICK_AIR
                 && event.getAction() != Action.RIGHT_CLICK_BLOCK;
     }
 
-    private boolean ItemIsNotSlimeCompass(ItemStack item) {
+    private boolean itemIsNotSlimeCompass(ItemStack item) {
         return item == null
-                || !item.getItemMeta().getPersistentDataContainer().has(_key, PersistentDataType.BYTE);
+                || !item.getItemMeta().getPersistentDataContainer().has(KEY, PersistentDataType.BYTE);
     }
 
-    private boolean ClickedBlockIsLodestone(Block block) {
+    private boolean clickedBlockIsLodestone(Block block) {
         return block != null
                 && block.getType() == Material.LODESTONE;
     }
     
-    private boolean PlayerIsNotInOverworld(Player player) {
+    private boolean playerIsNotInOverworld(Player player) {
         return player.getWorld().getEnvironment() != World.Environment.NORMAL;
     }
 }
